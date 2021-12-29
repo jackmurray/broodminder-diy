@@ -136,6 +136,13 @@ class ScanDelegate(DefaultDelegate):
             # print "Received new data from", dev.addr
             print("Received new data from {}".format(dev.addr))
 
+class BroodMinderResult:
+    def __init__(self, deviceId, sampleNumber, temperatureC, humidityPercent, weight = None):
+        self.DeviceId = deviceId
+        self.SampleNumber = sampleNumber
+        self.TemperatureC = temperatureC
+        self.HumidityPercent = humidityPercent
+        self.Weight = weight # TH devices don't have weight, so by default this will be None.
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
