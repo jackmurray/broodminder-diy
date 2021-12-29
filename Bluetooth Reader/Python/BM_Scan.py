@@ -99,7 +99,7 @@ def extractData(deviceId, data):
         print(
             "Sample = {}, Weight = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, weightScaledTotal, temperatureDegreesF,
                                                                                  humidityPercent, batteryPercent))
-        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, weightScaledTotal)
+        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, batteryPercent, weightScaledTotal)
         # Send the info to MyBroodMinder.com
         print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
         url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
@@ -113,7 +113,7 @@ def extractData(deviceId, data):
         # We do not have a valid weight.
         print("Sample = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, temperatureDegreesF, humidityPercent,
                                                                       batteryPercent))
-        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent)
+        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, batteryPercent)
         # Send the info to MyBroodMinder.com
         print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
         url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
@@ -139,11 +139,12 @@ class ScanDelegate(DefaultDelegate):
             print("Received new data from {}".format(dev.addr))
 
 class BroodMinderResult:
-    def __init__(self, deviceId, sampleNumber, temperatureC, humidityPercent, weight = None):
+    def __init__(self, deviceId, sampleNumber, temperatureC, humidityPercent, batteryPercent, weight = None):
         self.DeviceId = deviceId
         self.SampleNumber = sampleNumber
         self.TemperatureC = temperatureC
         self.HumidityPercent = humidityPercent
+        self.BatteryPercent = batteryPercent
         self.Weight = weight # TH devices don't have weight, so by default this will be None.
 
 scanner = Scanner().withDelegate(ScanDelegate())
