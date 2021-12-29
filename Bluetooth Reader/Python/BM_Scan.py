@@ -99,6 +99,7 @@ def extractData(deviceId, data):
         print(
             "Sample = {}, Weight = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, weightScaledTotal, temperatureDegreesF,
                                                                                  humidityPercent, batteryPercent))
+        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, weightScaledTotal)
         # Send the info to MyBroodMinder.com
         print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
         url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
@@ -112,6 +113,7 @@ def extractData(deviceId, data):
         # We do not have a valid weight.
         print("Sample = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, temperatureDegreesF, humidityPercent,
                                                                       batteryPercent))
+        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent)
         # Send the info to MyBroodMinder.com
         print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
         url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
