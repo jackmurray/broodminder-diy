@@ -28,6 +28,7 @@ __version__ = "1.0"
 
 from bluepy.btle import Scanner, DefaultDelegate
 import urllib3
+import argparse
 
 
 def byte(str, byteNum):
@@ -142,6 +143,13 @@ def sendDataToMyBroodMinder(data: BroodMinderResult):
     print(url_string)
     # Fire off the GET request which uploads the data. This should really be POST but that's not how the API works.
     urllib3.urlopen(url_string).read()
+
+
+# program starts here
+parser = argparse.ArgumentParser()
+parser.add_argument("--output", help="Where to send the discovered data", default="cloud", choices=["cloud", "influxdb"])
+parser.add_argument("--influx-org") # Actually, env vars would be better for this.
+args = parser.parse_args()
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
