@@ -158,7 +158,9 @@ for dev in devices:
             # Trap for the BroodMinder ID
             if (desc == "Complete Local Name"):
                 deviceId = value
-
-        extractData(deviceId, dev.getValueText(255))
+        if deviceId is not None:
+            extractData(deviceId, dev.getValueText(255))
+        else:
+            print("No BM device ID found in this packet - ignoring.")
     else:
         print("Device {} is not a broodminder - ignoring".format(dev.addr))
