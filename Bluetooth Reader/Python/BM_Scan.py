@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7
+#!/usr/bin/env python3
 __author__ = "Jesse Ross-Jones"
 __license__ = "Public Domain"
 __version__ = "1.0"
@@ -27,7 +27,7 @@ __version__ = "1.0"
 ##
 
 from bluepy.btle import Scanner, DefaultDelegate
-import urllib2
+import urllib3
 
 
 def byte(str, byteNum):
@@ -45,7 +45,7 @@ def checkBM(data):
     BMIFLLC = str("8d02")
     # print(byte(data,byteCheck))
     if (BMIFLLC == byte(data, byteCheck) + byte(data, byteCheck + 1)):
-        # print "confirmed BroodMinder"
+        print("confirmed BroodMinder")
         check = True
     return check
 
@@ -100,26 +100,26 @@ def extractData(deviceId, data):
             "Sample = {}, Weight = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, weightScaledTotal, temperatureDegreesF,
                                                                                  humidityPercent, batteryPercent))
         # Send the info to MyBroodMinder.com
-        print "Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ..."
+        print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
         url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
             temperatureDegreesF) + "&humidity=" + str(humidityPercent) + "&weight=" + str(
             weightScaledTotal) + "&battery_charge=" + str(
             batteryPercent)
-        print url_string
+        print(url_string)
 
-        contents = urllib2.urlopen(url_string).read()
+        urllib3.PoolManager().request("GET", url_string)
     else:
         # We do not have a valid weight.
         print("Sample = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, temperatureDegreesF, humidityPercent,
                                                                       batteryPercent))
         # Send the info to MyBroodMinder.com
-        print "Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ..."
+        print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
         url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
             temperatureDegreesF) + "&humidity=" + str(humidityPercent) + "&battery_charge=" + str(
             batteryPercent)
-        print url_string
+        print(url_string)
 
-        contents = urllib2.urlopen(url_string).read()
+        urllib3.PoolManager().request("GET", url_string)
 
     print("-----------------------------------------------------------------------------")
 
@@ -154,3 +154,5 @@ for dev in devices:
                 deviceId = value
 
         extractData(deviceId, dev.getValueText(255))
+    else:
+        print("Device {} is not a broodminder - ignoring".format(dev.addr))
