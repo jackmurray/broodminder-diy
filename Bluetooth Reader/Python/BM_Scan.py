@@ -27,7 +27,7 @@ __version__ = "1.0"
 ##
 
 from time import sleep
-from bluepy.btle import Scanner, DefaultDelegate
+from bluepy.btle import BTLEDisconnectError, Scanner, DefaultDelegate
 import urllib3
 import argparse
 import os
@@ -187,7 +187,13 @@ if output_mode == "influxdb":
 scanner = Scanner().withDelegate(ScanDelegate())
 
 while True:
-    devices = scanner.scan(15.0)
+    try:
+        devices = scanner.scan(15.0)
+    except BTLEDisconnectError:
+        # This seems to happen sometimes, presumably from devices losing connection part-way through us
+        # receiving data from them - nothing we can do about that so just ignore any occurrences of this
+        # and hopefully the next time we won't get disconnected (if it's even a device we care about).
+        pass
 
     for dev in devices:
         if (checkBM(dev.getValueText(255))):
