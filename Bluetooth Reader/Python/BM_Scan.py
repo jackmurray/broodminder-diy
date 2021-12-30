@@ -141,7 +141,7 @@ def sendDataToMyBroodMinder(data: BroodMinderResult):
         url_string += "&weight={}".format(data.Weight)
     print(url_string)
     # Fire off the GET request which uploads the data. This should really be POST but that's not how the API works.
-    urllib3.urlopen(url_string).read()
+    urllib3.PoolManager().request("GET", url_string)
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
