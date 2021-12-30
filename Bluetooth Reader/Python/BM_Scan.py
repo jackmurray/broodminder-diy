@@ -80,7 +80,7 @@ def extractData(deviceId, data):
 
     # temperatureDegreesC = e.data[byteNumAdvTemperature_2V2] + (e.data[byteNumAdvTemperature_2V2 + 1] << 8)
     temperatureDegreesC = int(byte(data, byteNumAdvTemperature_2V2 + 1) + byte(data, byteNumAdvTemperature_2V2), 16)
-    temperatureDegreesC = (float(temperatureDegreesC) / pow(2, 16) * 165 - 40)  # * 9 / 5 + 32
+    temperatureDegreesC = (temperatureDegreesC - 5000) / 100
     temperatureDegreesF = round((temperatureDegreesC * 9 / 5) + 32, 1)
 
     # humidityPercent = e.data[byteNumAdvHumidity_1V2]
@@ -136,14 +136,14 @@ class BroodMinderResult:
 
 def sendDataToMyBroodMinder(data: BroodMinderResult):
     # Send the info to MyBroodMinder.com
-    print("Sending device '{}' data to the MyBroodMinder Cloud ...").format(data.DeviceId)
+    print("Sending device '{}' data to the MyBroodMinder Cloud ...".format(data.DeviceId))
     url_string = "https://mybroodminder.com/api_public/devices/upload?device_id={}&sample={}&temperature={}&humidity={}&battery_charge={}".format(
         data.DeviceId, data.SampleNumber, data.TemperatureF, data.HumidityPercent, data.BatteryPercent)
     if data.Weight is not None: # Not all results will have weight, so only include it if we have a value.
         url_string += "&weight={}".format(data.Weight)
     print(url_string)
     # Fire off the GET request which uploads the data. This should really be POST but that's not how the API works.
-    urllib3.urlopen(url_string).read()
+    urllib3.PoolManager().request("GET", url_string)
 
 
 # program starts here
@@ -189,7 +189,9 @@ for dev in devices:
             # Trap for the BroodMinder ID
             if (desc == "Complete Local Name"):
                 deviceId = value
-
-        extractData(deviceId, dev.getValueText(255))
+        if deviceId is not None:
+            extractData(deviceId, dev.getValueText(255))
+        else:
+            print("No BM device ID found in this packet - ignoring.")
     else:
         print("Device {} is not a broodminder - ignoring".format(dev.addr))
