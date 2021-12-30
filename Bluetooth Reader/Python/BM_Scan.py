@@ -134,7 +134,7 @@ class BroodMinderResult:
 
 def sendDataToMyBroodMinder(data: BroodMinderResult):
     # Send the info to MyBroodMinder.com
-    print("Sending device '{}' data to the MyBroodMinder Cloud ...").format(data.DeviceId)
+    print("Sending device '{}' data to the MyBroodMinder Cloud ...".format(data.DeviceId))
     url_string = "https://mybroodminder.com/api_public/devices/upload?device_id={}&sample={}&temperature={}&humidity={}&battery_charge={}".format(
         data.DeviceId, data.SampleNumber, data.TemperatureF, data.HumidityPercent, data.BatteryPercent)
     if data.Weight is not None: # Not all results will have weight, so only include it if we have a value.
