@@ -29,6 +29,7 @@ __version__ = "1.0"
 from bluepy.btle import Scanner, DefaultDelegate
 import urllib3
 import argparse
+import os
 
 
 def byte(str, byteNum):
@@ -147,9 +148,25 @@ def sendDataToMyBroodMinder(data: BroodMinderResult):
 
 # program starts here
 parser = argparse.ArgumentParser()
-parser.add_argument("--output", help="Where to send the discovered data", default="cloud", choices=["cloud", "influxdb"])
-parser.add_argument("--influx-org") # Actually, env vars would be better for this.
+# In order to better support running in Docker, all arguments can be specified via env vars too.
+parser.add_argument("--output", help="Where to send the discovered data", default=os.environ.get("OUTPUT_MODE", "cloud"), choices=["cloud", "influxdb"])
+parser.add_argument("--influxdb-url", help="InfluxDB Server URL, needed if output=influxdb", default=os.environ.get("INFLUXDB_URL"))
+parser.add_argument("--influxdb-org", help="InfluxDB Organisation, needed if output=influxdb", default=os.environ.get("INFLUXDB_ORG"))
+parser.add_argument("--influxdb-bucket", help="InfluxDB Bucket, needed if output=influxdb", default=os.environ.get("INFLUXDB_BUCKET"))
+parser.add_argument("--influxdb-token", help="InfluxDB Auth Token, needed if output=influxdb", default=os.environ.get("INFLUXDB_TOKEN"))
 args = parser.parse_args()
+
+output_mode = getattr(args, "output")
+if output_mode == "influxdb":
+    # Validate that we have all the other args we need to connect.
+    if getattr(args, "influxdb-url") is None:
+        raise argparse.ArgumentError("influxdb-url must be set with output=influxdb")
+    if getattr(args, "influxdb-org") is None:
+        raise argparse.ArgumentError("influxdb-org must be set with output=influxdb")
+    if getattr(args, "influxdb-bucket") is None:
+        raise argparse.ArgumentError("influxdb-bucket must be set with output=influxdb")
+    if getattr(args, "influxdb-token") is None:
+        raise argparse.ArgumentError("influxdb-token must be set with output=influxdb")
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
