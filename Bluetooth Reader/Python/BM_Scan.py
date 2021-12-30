@@ -30,6 +30,8 @@ from bluepy.btle import Scanner, DefaultDelegate
 import urllib3
 import argparse
 import os
+import influxdb_client
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 def byte(str, byteNum):
@@ -159,14 +161,22 @@ args = parser.parse_args()
 output_mode = getattr(args, "output")
 if output_mode == "influxdb":
     # Validate that we have all the other args we need to connect.
-    if getattr(args, "influxdb-url") is None:
+    influxdb_url = getattr(args, "influxdb-url")
+    influxdb_org = getattr(args, "influxdb-org")
+    influxdb_bucket = getattr(args, "influxdb-bucket")
+    influxdb_token = getattr(args, "influxdb-token")
+
+    if influxdb_url is None:
         raise argparse.ArgumentError("influxdb-url must be set with output=influxdb")
-    if getattr(args, "influxdb-org") is None:
+    if influxdb_org is None:
         raise argparse.ArgumentError("influxdb-org must be set with output=influxdb")
-    if getattr(args, "influxdb-bucket") is None:
+    if influxdb_bucket is None:
         raise argparse.ArgumentError("influxdb-bucket must be set with output=influxdb")
-    if getattr(args, "influxdb-token") is None:
+    if influxdb_token is None:
         raise argparse.ArgumentError("influxdb-token must be set with output=influxdb")
+
+    client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org)
+    influx_write_api = client.write_api(write_options=SYNCHRONOUS)
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
