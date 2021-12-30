@@ -110,8 +110,7 @@ def extractData(deviceId, data):
                                                                       batteryPercent))
         result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, batteryPercent)
     
-    sendDataToMyBroodMinder(result)
-    print("-----------------------------------------------------------------------------")
+    return result
 
 class ScanDelegate(DefaultDelegate):
     def __init__(self):
@@ -147,6 +146,11 @@ def sendDataToMyBroodMinder(data: BroodMinderResult):
     # Fire off the GET request which uploads the data. This should really be POST but that's not how the API works.
     urllib3.PoolManager().request("GET", url_string)
 
+def sendDataToInfluxDb(write_api, org: str, bucket: str, data: BroodMinderResult):
+    p = influxdb_client.Point("broodminder").tag("deviceId", data.DeviceId).field("temperature", data.TemperatureC).field(
+        "humidity", data.HumidityPercent).field("battery", data.BatteryPercent).field("sampleNumber", data.SampleNumber)
+    write_api.write(org=org, bucket=bucket, record=p)
+
 
 # program starts here
 parser = argparse.ArgumentParser()
@@ -161,22 +165,22 @@ args = parser.parse_args()
 output_mode = getattr(args, "output")
 if output_mode == "influxdb":
     # Validate that we have all the other args we need to connect.
-    influxdb_url = getattr(args, "influxdb-url")
-    influxdb_org = getattr(args, "influxdb-org")
-    influxdb_bucket = getattr(args, "influxdb-bucket")
-    influxdb_token = getattr(args, "influxdb-token")
+    influxdb_url = getattr(args, "influxdb_url", None)
+    influxdb_org = getattr(args, "influxdb_org", None)
+    influxdb_bucket = getattr(args, "influxdb_bucket", None)
+    influxdb_token = getattr(args, "influxdb_token", None)
 
     if influxdb_url is None:
-        raise argparse.ArgumentError("influxdb-url must be set with output=influxdb")
+        raise ValueError("influxdb-url must be set with output=influxdb")
     if influxdb_org is None:
-        raise argparse.ArgumentError("influxdb-org must be set with output=influxdb")
+        raise ValueError("influxdb-org must be set with output=influxdb")
     if influxdb_bucket is None:
-        raise argparse.ArgumentError("influxdb-bucket must be set with output=influxdb")
+        raise ValueError("influxdb-bucket must be set with output=influxdb")
     if influxdb_token is None:
-        raise argparse.ArgumentError("influxdb-token must be set with output=influxdb")
+        raise ValueError("influxdb-token must be set with output=influxdb")
 
     client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org)
-    influx_write_api = client.write_api(write_options=SYNCHRONOUS)
+    influxdb_write_api = client.write_api(write_options=SYNCHRONOUS)
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
@@ -200,7 +204,15 @@ for dev in devices:
             if (desc == "Complete Local Name"):
                 deviceId = value
         if deviceId is not None:
-            extractData(deviceId, dev.getValueText(255))
+            result = extractData(deviceId, dev.getValueText(255))
+            if output_mode == "cloud":
+                sendDataToMyBroodMinder(result)
+            elif output_mode == "influxdb":
+                sendDataToInfluxDb(influxdb_write_api, influxdb_org, influxdb_bucket, result)
+            else:
+                raise ValueError("Unknown output mode {}, not doing anything with results.".format(output_mode))
+            print("--- Data uploaded ---")
+
         else:
             print("No BM device ID found in this packet - ignoring.")
     else:
