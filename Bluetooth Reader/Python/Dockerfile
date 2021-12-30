@@ -2,7 +2,7 @@ FROM python:3
 
 RUN pip install urllib3
 RUN pip install bluepy
-# RUN pip install influxdb # TODO: confirm package name
+RUN pip install influxdb-client
 
 COPY BM_Scan.py /app.py
 
