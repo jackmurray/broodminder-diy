@@ -78,7 +78,7 @@ def extractData(deviceId, data):
 
     # temperatureDegreesC = e.data[byteNumAdvTemperature_2V2] + (e.data[byteNumAdvTemperature_2V2 + 1] << 8)
     temperatureDegreesC = int(byte(data, byteNumAdvTemperature_2V2 + 1) + byte(data, byteNumAdvTemperature_2V2), 16)
-    temperatureDegreesC = (float(temperatureDegreesC) / pow(2, 16) * 165 - 40)  # * 9 / 5 + 32
+    temperatureDegreesC = (temperatureDegreesC - 5000) / 100
     temperatureDegreesF = round((temperatureDegreesC * 9 / 5) + 32, 1)
 
     # humidityPercent = e.data[byteNumAdvHumidity_1V2]
@@ -99,30 +99,15 @@ def extractData(deviceId, data):
         print(
             "Sample = {}, Weight = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, weightScaledTotal, temperatureDegreesF,
                                                                                  humidityPercent, batteryPercent))
-        # Send the info to MyBroodMinder.com
-        print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
-        url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
-            temperatureDegreesF) + "&humidity=" + str(humidityPercent) + "&weight=" + str(
-            weightScaledTotal) + "&battery_charge=" + str(
-            batteryPercent)
-        print(url_string)
-
-        urllib3.PoolManager().request("GET", url_string)
+        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, batteryPercent, weightScaledTotal)
     else:
         # We do not have a valid weight.
         print("Sample = {}, TemperatureF = {}, Humidity = {}, Battery = {}".format(sampleNumber, temperatureDegreesF, humidityPercent,
                                                                       batteryPercent))
-        # Send the info to MyBroodMinder.com
-        print("Sending device '" + deviceId + "' data to the MyBroodMinder Cloud ...")
-        url_string = "https://mybroodminder.com/api_public/devices/upload?device_id=" + deviceId + "&sample=" + str(sampleNumber) + "&temperature=" + str(
-            temperatureDegreesF) + "&humidity=" + str(humidityPercent) + "&battery_charge=" + str(
-            batteryPercent)
-        print(url_string)
-
-        urllib3.PoolManager().request("GET", url_string)
-
+        result = BroodMinderResult(deviceId, sampleNumber, temperatureDegreesC, humidityPercent, batteryPercent)
+    
+    sendDataToMyBroodMinder(result)
     print("-----------------------------------------------------------------------------")
-
 
 class ScanDelegate(DefaultDelegate):
     def __init__(self):
@@ -136,6 +121,27 @@ class ScanDelegate(DefaultDelegate):
             # print "Received new data from", dev.addr
             print("Received new data from {}".format(dev.addr))
 
+class BroodMinderResult:
+    def __init__(self, deviceId, sampleNumber, temperatureC, humidityPercent, batteryPercent, weight = None):
+        self.DeviceId = deviceId
+        self.SampleNumber = sampleNumber
+        self.TemperatureC = temperatureC
+        self.HumidityPercent = humidityPercent
+        self.BatteryPercent = batteryPercent
+        self.Weight = weight # TH devices don't have weight, so by default this will be None.
+        # The MyBroodMinder API expects the temperature in F :(
+        self.TemperatureF = round((temperatureC * 9 / 5) + 32, 1)
+
+def sendDataToMyBroodMinder(data: BroodMinderResult):
+    # Send the info to MyBroodMinder.com
+    print("Sending device '{}' data to the MyBroodMinder Cloud ...".format(data.DeviceId))
+    url_string = "https://mybroodminder.com/api_public/devices/upload?device_id={}&sample={}&temperature={}&humidity={}&battery_charge={}".format(
+        data.DeviceId, data.SampleNumber, data.TemperatureF, data.HumidityPercent, data.BatteryPercent)
+    if data.Weight is not None: # Not all results will have weight, so only include it if we have a value.
+        url_string += "&weight={}".format(data.Weight)
+    print(url_string)
+    # Fire off the GET request which uploads the data. This should really be POST but that's not how the API works.
+    urllib3.PoolManager().request("GET", url_string)
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(15.0)
@@ -152,7 +158,9 @@ for dev in devices:
             # Trap for the BroodMinder ID
             if (desc == "Complete Local Name"):
                 deviceId = value
-
-        extractData(deviceId, dev.getValueText(255))
+        if deviceId is not None:
+            extractData(deviceId, dev.getValueText(255))
+        else:
+            print("No BM device ID found in this packet - ignoring.")
     else:
         print("Device {} is not a broodminder - ignoring".format(dev.addr))
