@@ -187,6 +187,7 @@ if output_mode == "influxdb":
 scanner = Scanner().withDelegate(ScanDelegate())
 
 while True:
+    devices = []
     try:
         devices = scanner.scan(15.0)
     except BTLEDisconnectError:
