@@ -26,6 +26,7 @@ __version__ = "1.0"
 ## Added support for uploading the sample info as well.
 ##
 
+from time import sleep
 from bluepy.btle import Scanner, DefaultDelegate
 import urllib3
 import argparse
@@ -155,6 +156,7 @@ def sendDataToInfluxDb(write_api, org: str, bucket: str, data: BroodMinderResult
 # program starts here
 parser = argparse.ArgumentParser()
 # In order to better support running in Docker, all arguments can be specified via env vars too.
+parser.add_argument("--daemon", help="Run in a continuous loop, scanning for new data every 60s", action="store_true")
 parser.add_argument("--output", help="Where to send the discovered data", default=os.environ.get("OUTPUT_MODE", "cloud"), choices=["cloud", "influxdb"])
 parser.add_argument("--influxdb-url", help="InfluxDB Server URL, needed if output=influxdb", default=os.environ.get("INFLUXDB_URL"))
 parser.add_argument("--influxdb-org", help="InfluxDB Organisation, needed if output=influxdb", default=os.environ.get("INFLUXDB_ORG"))
@@ -183,37 +185,46 @@ if output_mode == "influxdb":
     influxdb_write_api = client.write_api(write_options=SYNCHRONOUS)
 
 scanner = Scanner().withDelegate(ScanDelegate())
-devices = scanner.scan(15.0)
 
-# TODO:
-# - Add support for arguments to supply influxdb details.
-# - Add an argument to run in a loop forever for daemon operation
-# - Add influxdb output function, and conditionally call that
-#   or the MBM upload function based on args.
+while True:
+    devices = scanner.scan(15.0)
 
-for dev in devices:
-    if (checkBM(dev.getValueText(255))):
-        # print "BroodMinder Found!"
-        # print "Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi)
-        print("Device {} ({}), RSSI={} dB".format(dev.addr, dev.addrType, dev.rssi))
-        for (adtype, desc, value) in dev.getScanData():
-            # print "  %s = %s" % (desc, value)
-            print ("{} = {}".format(desc, value))
+    # TODO:
+    # - Add support for arguments to supply influxdb details.
+    # - Add an argument to run in a loop forever for daemon operation
+    # - Add influxdb output function, and conditionally call that
+    #   or the MBM upload function based on args.
 
-            # Trap for the BroodMinder ID
-            if (desc == "Complete Local Name"):
-                deviceId = value
-        if deviceId is not None:
-            result = extractData(deviceId, dev.getValueText(255))
-            if output_mode == "cloud":
-                sendDataToMyBroodMinder(result)
-            elif output_mode == "influxdb":
-                sendDataToInfluxDb(influxdb_write_api, influxdb_org, influxdb_bucket, result)
+    for dev in devices:
+        if (checkBM(dev.getValueText(255))):
+            # print "BroodMinder Found!"
+            # print "Device %s (%s), RSSI=%d dB" % (dev.addr, dev.addrType, dev.rssi)
+            print("Device {} ({}), RSSI={} dB".format(dev.addr, dev.addrType, dev.rssi))
+            for (adtype, desc, value) in dev.getScanData():
+                # print "  %s = %s" % (desc, value)
+                print ("{} = {}".format(desc, value))
+
+                # Trap for the BroodMinder ID
+                if (desc == "Complete Local Name"):
+                    deviceId = value
+            if deviceId is not None:
+                result = extractData(deviceId, dev.getValueText(255))
+                if output_mode == "cloud":
+                    sendDataToMyBroodMinder(result)
+                elif output_mode == "influxdb":
+                    sendDataToInfluxDb(influxdb_write_api, influxdb_org, influxdb_bucket, result)
+                else:
+                    raise ValueError("Unknown output mode {}, not doing anything with results.".format(output_mode))
+                print("--- Data uploaded ---")
+
             else:
-                raise ValueError("Unknown output mode {}, not doing anything with results.".format(output_mode))
-            print("--- Data uploaded ---")
-
+                print("No BM device ID found in this packet - ignoring.")
         else:
-            print("No BM device ID found in this packet - ignoring.")
+            print("Device {} is not a broodminder - ignoring".format(dev.addr))
+
+    # If we're not running in daemon mode, break out of the loop and thus exit the program.
+    if getattr(args, "daemon") == False:
+        break
+    # If we are in daemon mode, sleep until the next run.
     else:
-        print("Device {} is not a broodminder - ignoring".format(dev.addr))
+        sleep(60)
