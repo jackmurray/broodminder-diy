@@ -189,12 +189,6 @@ scanner = Scanner().withDelegate(ScanDelegate())
 while True:
     devices = scanner.scan(15.0)
 
-    # TODO:
-    # - Add support for arguments to supply influxdb details.
-    # - Add an argument to run in a loop forever for daemon operation
-    # - Add influxdb output function, and conditionally call that
-    #   or the MBM upload function based on args.
-
     for dev in devices:
         if (checkBM(dev.getValueText(255))):
             # print "BroodMinder Found!"
