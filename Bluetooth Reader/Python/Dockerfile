@@ -8,4 +8,5 @@ ENV OUTPUT_MODE influxdb
 
 COPY sqlite_to_influxdb.py .
 
-ENTRYPOINT [ "python3", "/app/sqlite_to_influxdb.py", "--daemon" ]
+EXPOSE 5000
+ENTRYPOINT [ "python3", "/app/sqlite_to_influxdb.py" ]

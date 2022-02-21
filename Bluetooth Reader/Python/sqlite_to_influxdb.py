@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import os
 import time
@@ -5,6 +6,10 @@ import argparse
 import influxdb_client
 from influxdb_client.client.write_api import SYNCHRONOUS
 import flask
+from flask import jsonify, request
+
+UPLOAD_FOLDER = "/tmp"
+TMP_FILENAME = "broodminder_upload.tmp"
 
 # The sqlite DB stores the temp in F, so this class will convert it.
 class BroodMinderResult:
@@ -24,11 +29,23 @@ def sendDataToInfluxDb(write_api, org: str, bucket: str, data: BroodMinderResult
         "humidity", data.HumidityPercent).field("battery", data.BatteryPercent).field("sampleNumber", data.SampleNumber)
     write_api.write(org=org, bucket=bucket, record=p)
 
+def handle_uploaded_file(file):
+    file.save(os.path.join(UPLOAD_FOLDER, TMP_FILENAME))
+    return ok('File uploaded')
+
+def error(message, code = 400):
+    resp = jsonify({'result': 'error', 'message': message})
+    resp.status_code = code
+    return resp
+
+def ok(message):
+    resp = jsonify({'result': 'ok', 'message': message})
+    resp.status_code = 200
+    return resp
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # In order to better support running in Docker, all arguments can be specified via env vars too.
-    parser.add_argument("--daemon", help="Run in a continuous loop, scanning for new data every 60s", action="store_true")
     parser.add_argument("--output", help="Where to send the discovered data", default=os.environ.get("OUTPUT_MODE", "cloud"), choices=["cloud", "influxdb"])
     parser.add_argument("--influxdb-url", help="InfluxDB Server URL, needed if output=influxdb", default=os.environ.get("INFLUXDB_URL"))
     parser.add_argument("--influxdb-org", help="InfluxDB Organisation, needed if output=influxdb", default=os.environ.get("INFLUXDB_ORG"))
@@ -53,18 +70,24 @@ if __name__ == "__main__":
     client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org)
     influxdb_write_api = client.write_api(write_options=SYNCHRONOUS)
 
-    while True:
-        print("Main loop started")
+    print("Starting Flask")
 
-        # Start flask
-        # Read records from DB and send to InfluxDB.
-        # TODO: query influxdb and find the most recent record, and then only copy records later than that.
+    app = flask.Flask(__name__)
+    app.config["DEBUG"] = True
 
-        
+    @app.route('/', methods=['GET'])
+    def home():
+        return "hello flask"
+    
+    @app.route('/upload', methods=['POST'])
+    def upload():
+        # check if the post request has the file part
+        if 'file' not in request.files:
+            return error('No file uploaded')
+        file = request.files['file']
+        return handle_uploaded_file(file)
 
-        # If we're not running in daemon mode, break out of the loop and thus exit the program.
-        if getattr(args, "daemon") == False:
-            break
-        # If we are in daemon mode, sleep until the next run.
-        else:
-            time.sleep(60)
+    # Read records from DB and send to InfluxDB.
+    # TODO: query influxdb and find the most recent record, and then only copy records later than that.
+
+    app.run(host='0.0.0.0')
