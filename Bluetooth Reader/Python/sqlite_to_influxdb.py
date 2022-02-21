@@ -29,8 +29,22 @@ def sendDataToInfluxDb(write_api, org: str, bucket: str, data: BroodMinderResult
         "humidity", data.HumidityPercent).field("battery", data.BatteryPercent).field("sampleNumber", data.SampleNumber)
     write_api.write(org=org, bucket=bucket, record=p)
 
+# Read records from uploaded db file and send to InfluxDB. Not even slightly thread-safe.
 def handle_uploaded_file(file):
+    # TODO: query influxdb and find the most recent record, and then only copy records later than that.
     file.save(os.path.join(UPLOAD_FOLDER, TMP_FILENAME))
+
+    db = sqlite3.connect(os.path.join(UPLOAD_FOLDER, TMP_FILENAME))
+    db.row_factory = sqlite3.Row # Enable named columns
+    cur = db.cursor()
+    cur.execute("SELECT * FROM StoredSensorReading")
+    for row in cur:
+        result = BroodMinderResult(row['DeviceId'], row['Sample'], row['Temperature'], row['Humidity'], row['Battery'])
+        print(result)
+        # Send to influxdb
+
+    db.close()
+    os.unlink(os.path.join(UPLOAD_FOLDER, TMP_FILENAME)) # Delete file now that we're done
     return ok('File uploaded')
 
 def error(message, code = 400):
@@ -86,8 +100,5 @@ if __name__ == "__main__":
             return error('No file uploaded')
         file = request.files['file']
         return handle_uploaded_file(file)
-
-    # Read records from DB and send to InfluxDB.
-    # TODO: query influxdb and find the most recent record, and then only copy records later than that.
 
     app.run(host='0.0.0.0')
