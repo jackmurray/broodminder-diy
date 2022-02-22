@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import sqlite3
 import os
@@ -39,7 +40,7 @@ class BroodMinderInfluxClient:
 
         self.write_api.write(self.bucket, self.org, record=p)
     
-    def getLatestRecord(self, deviceId: str):
+    def getLatestRecordTimestamp(self, deviceId: str) -> datetime:
         query = """from(bucket: "{0}")
                     |> range(start: -100y)
                     |> filter(fn: (r) => r["_measurement"] == "broodminder")
@@ -48,39 +49,44 @@ class BroodMinderInfluxClient:
                     |> last()""".format(self.bucket, deviceId)
         records = self.query_api.query_stream(query)
         for r in records: # There should only be 1 result anyway
-            print(r)
             return r["_time"]
 
 
 # Read records from uploaded db file and send to InfluxDB. Not even slightly thread-safe.
 def handle_uploaded_file(file, client: BroodMinderInfluxClient):
-    # TODO: query influxdb and find the most recent record, and then only copy records later than that.
     file.save(os.path.join(UPLOAD_FOLDER, TMP_FILENAME))
 
     db = sqlite3.connect(os.path.join(UPLOAD_FOLDER, TMP_FILENAME))
     db.row_factory = sqlite3.Row # Enable named columns
-    cur = db.cursor()
-    cur.execute("SELECT * FROM StoredSensorReading")
 
-    # TODO: group records from db by deviceId and query them from influxdb separately
-    
-    for row in cur:
-        most_recent_record = client.getLatestRecord(row['DeviceId'])
-        print(most_recent_record)
-        result = BroodMinderResult(row['DeviceId'], row['Sample'], row['Timestamp'], row['Temperature'], row['Humidity'], row['Battery'])
-        client.write(result)
+    cur_devices = db.cursor()
+    cur_devices.execute("SELECT DISTINCT DeviceId FROM StoredSensorReading")
+    upload_results = {}
+    for deviceRow in cur_devices:
+        deviceId = deviceRow['DeviceId']
+        most_recent_record = client.getLatestRecordTimestamp(deviceId)
+        upload_results[deviceId] = most_recent_record
+
+        cur = db.cursor()
+        cur.execute("SELECT * FROM StoredSensorReading WHERE DeviceId = ? AND timestamp > ?", (deviceId, most_recent_record.timestamp()))
+
+        for row in cur:
+            result = BroodMinderResult(deviceId, row['Sample'], row['Timestamp'], row['Temperature'], row['Humidity'], row['Battery'])
+            client.write(result)
+        cur.close()
+    cur_devices.close()
 
     db.close()
     os.unlink(os.path.join(UPLOAD_FOLDER, TMP_FILENAME)) # Delete file now that we're done
-    return ok('File uploaded')
+    return ok('Data imported', upload_results)
 
 def error(message, code = 400):
     resp = jsonify({'result': 'error', 'message': message})
     resp.status_code = code
     return resp
 
-def ok(message):
-    resp = jsonify({'result': 'ok', 'message': message})
+def ok(message, data = None):
+    resp = jsonify({'result': 'ok', 'message': message, 'data': data})
     resp.status_code = 200
     return resp
 
