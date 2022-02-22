@@ -4,6 +4,7 @@ import os
 import time
 import argparse
 import influxdb_client
+import influxdb_client.client.query_api
 from influxdb_client.client.write_api import SYNCHRONOUS, WritePrecision
 import flask
 from flask import jsonify, request
@@ -24,11 +25,12 @@ class BroodMinderResult:
         self.Weight = weight # TH devices don't have weight, so by default this will be None.
         # The MyBroodMinder API expects the temperature in F :(
 
-class BroodMinderInfluxWriter:
-    def __init__(self, write_api: influxdb_client.WriteApi, org, bucket):
+class BroodMinderInfluxClient:
+    def __init__(self, write_api: influxdb_client.WriteApi, query_api: influxdb_client.QueryApi, org, bucket):
         self.write_api = write_api
         self.org = org
         self.bucket = bucket
+        self.query_api = query_api
 
     def write(self, data: BroodMinderResult):
         p = influxdb_client.Point("broodminder").tag("deviceId", data.DeviceId).field("temperature", data.TemperatureC).field(
@@ -36,9 +38,22 @@ class BroodMinderInfluxWriter:
         data.Timestamp, write_precision=WritePrecision.S)
 
         self.write_api.write(self.bucket, self.org, record=p)
+    
+    def getLatestRecord(self, deviceId: str):
+        query = """from(bucket: "{0}")
+                    |> range(start: -100y)
+                    |> filter(fn: (r) => r["_measurement"] == "broodminder")
+                    |> filter(fn: (r) => r["_field"] == "temperature")
+                    |> filter(fn: (r) => r["deviceId"] == "{1}")
+                    |> last()""".format(self.bucket, deviceId)
+        records = self.query_api.query_stream(query)
+        for r in records: # There should only be 1 result anyway
+            print(r)
+            return r["_time"]
+
 
 # Read records from uploaded db file and send to InfluxDB. Not even slightly thread-safe.
-def handle_uploaded_file(file, writer: BroodMinderInfluxWriter):
+def handle_uploaded_file(file, client: BroodMinderInfluxClient):
     # TODO: query influxdb and find the most recent record, and then only copy records later than that.
     file.save(os.path.join(UPLOAD_FOLDER, TMP_FILENAME))
 
@@ -46,10 +61,14 @@ def handle_uploaded_file(file, writer: BroodMinderInfluxWriter):
     db.row_factory = sqlite3.Row # Enable named columns
     cur = db.cursor()
     cur.execute("SELECT * FROM StoredSensorReading")
+
+    # TODO: group records from db by deviceId and query them from influxdb separately
     
     for row in cur:
+        most_recent_record = client.getLatestRecord(row['DeviceId'])
+        print(most_recent_record)
         result = BroodMinderResult(row['DeviceId'], row['Sample'], row['Timestamp'], row['Temperature'], row['Humidity'], row['Battery'])
-        writer.write(result)
+        client.write(result)
 
     db.close()
     os.unlink(os.path.join(UPLOAD_FOLDER, TMP_FILENAME)) # Delete file now that we're done
@@ -91,6 +110,7 @@ if __name__ == "__main__":
 
     client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org)
     influxdb_write_api = client.write_api(write_options=SYNCHRONOUS)
+    influxdb_query_api = client.query_api()
 
     print("Starting Flask")
 
@@ -107,7 +127,7 @@ if __name__ == "__main__":
         if 'file' not in request.files:
             return error('No file uploaded')
         file = request.files['file']
-        writer = BroodMinderInfluxWriter(influxdb_write_api, influxdb_org, influxdb_bucket)
-        return handle_uploaded_file(file, writer)
+        client = BroodMinderInfluxClient(influxdb_write_api, influxdb_query_api, influxdb_org, influxdb_bucket)
+        return handle_uploaded_file(file, client)
 
     app.run(host='0.0.0.0')
