@@ -64,16 +64,17 @@ def handle_uploaded_file(file, client: BroodMinderInfluxClient):
     upload_results = {}
     for deviceRow in cur_devices:
         deviceId = deviceRow['DeviceId']
-        most_recent_record = client.getLatestRecordTimestamp(deviceId)
-        upload_results[deviceId] = most_recent_record
+        last_record_timestamp = client.getLatestRecordTimestamp(deviceId)
 
         cur = db.cursor()
-        cur.execute("SELECT * FROM StoredSensorReading WHERE DeviceId = ? AND timestamp > ?", (deviceId, most_recent_record.timestamp()))
+        cur.execute("SELECT * FROM StoredSensorReading WHERE DeviceId = ? AND timestamp > ?", (deviceId, last_record_timestamp.timestamp()))
 
         for row in cur:
             result = BroodMinderResult(deviceId, row['Sample'], row['Timestamp'], row['Temperature'], row['Humidity'], row['Battery'])
             client.write(result)
+            last_record_timestamp = row['Timestamp']
         cur.close()
+        upload_results[deviceId] = last_record_timestamp
     cur_devices.close()
 
     db.close()
