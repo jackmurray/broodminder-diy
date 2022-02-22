@@ -82,12 +82,12 @@ def handle_uploaded_file(file, client: BroodMinderInfluxClient):
     return ok('Data imported', upload_results)
 
 def error(message, code = 400):
-    resp = jsonify({'result': 'error', 'message': message})
+    resp = jsonify({'message': message})
     resp.status_code = code
     return resp
 
 def ok(message, data = None):
-    resp = jsonify({'result': 'ok', 'message': message, 'data': data})
+    resp = jsonify({'message': message, 'data': data})
     resp.status_code = 200
     return resp
 
