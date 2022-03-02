@@ -65,6 +65,8 @@ def handle_uploaded_file(file, client: BroodMinderInfluxClient):
     for deviceRow in cur_devices:
         deviceId = deviceRow['DeviceId']
         last_record_timestamp = client.getLatestRecordTimestamp(deviceId)
+        if last_record_timestamp is None: # if the db is empty, use the earliest posssible timestamp.
+            last_record_timestamp = datetime.fromtimestamp(0)
 
         cur = db.cursor()
         cur.execute("SELECT * FROM StoredSensorReading WHERE DeviceId = ? AND timestamp > ?", (deviceId, last_record_timestamp.timestamp()))
