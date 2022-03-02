@@ -24,6 +24,6 @@ services:
     ports:
       - 8086:8086
  
- networks:
+networks:
   traefik:
     external: true
