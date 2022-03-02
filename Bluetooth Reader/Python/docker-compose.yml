@@ -1,0 +1,17 @@
+version: '2.0'
+
+services:
+  app:
+    build: .
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_ORG=broodminder
+      - INFLUXDB_BUCKET=broodminder
+      - INFLUXDB_TOKEN=asdf
+    ports:
+      - 5000:5000
+  influxdb:
+    image: influxdb:latest
+    ports:
+      - 8086:8086
+ 
