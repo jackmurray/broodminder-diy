@@ -10,6 +10,15 @@ services:
       - INFLUXDB_TOKEN=asdf
     ports:
       - 5000:5000
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.broodminder.rule=Host(`app.yourdomain.com`) && PathPrefix(`/broodminder/`)"
+      - "traefik.http.routers.broodminder.entrypoints=internal"
+      - "traefik.http.routers.broodminder.tls=true"
+      - "traefik.http.routers.broodminder.tls.certResolver=letsEncrypt"
+      - "traefik.docker.network=traefik"
   influxdb:
     image: influxdb:latest
     ports:
