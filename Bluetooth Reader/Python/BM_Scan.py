@@ -26,6 +26,7 @@ __version__ = "1.0"
 ## Added support for uploading the sample info as well.
 ##
 
+from multiprocessing.sharedctypes import Value
 from time import sleep
 from bluepy.btle import BTLEDisconnectError, Scanner, DefaultDelegate
 import urllib3
@@ -119,11 +120,11 @@ class ScanDelegate(DefaultDelegate):
 
     def handleDiscovery(self, dev, isNewDev, isNewData):
         if isNewDev:
-            # print "Discovered device", dev.addr
-            print("Discovered device {}".format(dev.addr))
+            #print("Discovered device {}".format(dev.addr))
+            pass
         elif isNewData:
-            # print "Received new data from", dev.addr
-            print("Received new data from {}".format(dev.addr))
+            #print("Received new data from {}".format(dev.addr))
+            pass
 
 class BroodMinderResult:
     def __init__(self, deviceId, sampleNumber, temperatureC, humidityPercent, batteryPercent, weight = None):
@@ -157,6 +158,7 @@ def sendDataToInfluxDb(write_api, org: str, bucket: str, data: BroodMinderResult
 parser = argparse.ArgumentParser()
 # In order to better support running in Docker, all arguments can be specified via env vars too.
 parser.add_argument("--daemon", help="Run in a continuous loop, scanning for new data every 60s", action="store_true")
+parser.add_argument("--output", help="Where to send the discovered data", default=os.environ.get("OUTPUT_MODE", "cloud"), choices=["cloud", "influxdb"])
 parser.add_argument("--influxdb-url", help="InfluxDB Server URL, needed if output=influxdb", default=os.environ.get("INFLUXDB_URL"))
 parser.add_argument("--influxdb-org", help="InfluxDB Organisation, needed if output=influxdb", default=os.environ.get("INFLUXDB_ORG"))
 parser.add_argument("--influxdb-bucket", help="InfluxDB Bucket, needed if output=influxdb", default=os.environ.get("INFLUXDB_BUCKET"))
@@ -164,24 +166,26 @@ parser.add_argument("--influxdb-token", help="InfluxDB Auth Token, needed if out
 args = parser.parse_args()
 
 # Validate that we have all the other args we need to connect.
+output_mode = getattr(args, "output", None)
 influxdb_url = getattr(args, "influxdb_url", None)
 influxdb_org = getattr(args, "influxdb_org", None)
 influxdb_bucket = getattr(args, "influxdb_bucket", None)
 influxdb_token = getattr(args, "influxdb_token", None)
 
-if influxdb_url is None:
-    raise ValueError("influxdb-url must be set with output=influxdb")
-if influxdb_org is None:
-    raise ValueError("influxdb-org must be set with output=influxdb")
-if influxdb_bucket is None:
-    raise ValueError("influxdb-bucket must be set with output=influxdb")
-if influxdb_token is None:
-    raise ValueError("influxdb-token must be set with output=influxdb")
+if output_mode == "influxdb":
+    if influxdb_url is None:
+        raise ValueError("influxdb-url must be set with output=influxdb")
+    if influxdb_org is None:
+        raise ValueError("influxdb-org must be set with output=influxdb")
+    if influxdb_bucket is None:
+        raise ValueError("influxdb-bucket must be set with output=influxdb")
+    if influxdb_token is None:
+        raise ValueError("influxdb-token must be set with output=influxdb")
 
 client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org)
 influxdb_write_api = client.write_api(write_options=SYNCHRONOUS)
 
-scanner = Scanner(1).withDelegate(ScanDelegate())
+scanner = Scanner(0).withDelegate(ScanDelegate())
 
 while True:
     devices = []
