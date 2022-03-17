@@ -222,7 +222,8 @@ while True:
             else:
                 print("No BM device ID found in this packet - ignoring.")
         else:
-            print("Device {} is not a broodminder - ignoring".format(dev.addr))
+            #print("Device {} is not a broodminder - ignoring".format(dev.addr))
+            pass
 
     # If we're not running in daemon mode, break out of the loop and thus exit the program.
     if getattr(args, "daemon") == False:
